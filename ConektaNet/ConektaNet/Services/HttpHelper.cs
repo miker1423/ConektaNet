@@ -11,15 +11,17 @@ namespace ConektaNet.Services
 {
     public class HttpHelper : IHttpHelper
     {
-        private static HttpClient _client = new HttpClient();
-        private static string VersionHeader;
+        private static HttpClient _client;
         private static string Version;
         private static string Language;
         private static string ApiKey;
 
         public HttpHelper(IOptions<Configuration> options)
         {
-            _client.BaseAddress = new Uri(options.Value.BaseUrl);
+            _client = new HttpClient()
+            {
+                BaseAddress = new Uri(options.Value.BaseUrl)
+            };
 
             var normalizedVersion = options.Value.ApiVersion.Replace(".", "");
             if(int.Parse(normalizedVersion) < 200)
@@ -29,12 +31,17 @@ namespace ConektaNet.Services
             else
             {
                 Version = options.Value.ApiVersion;
-                VersionHeader = "application/vnd.conekta-v" + Version + "+json";
+                string VersionHeader = "application/vnd.conekta-v" + Version + "+json";
+
+                Language = options.Value.Locale;
+
+                ApiKey = Convert.ToBase64String(Encoding.UTF8.GetBytes(options.Value.ApiKey));
+
+                _client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(VersionHeader));
+                _client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue(Language));
+                _client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Conekta/v1 DotNetBindings10/Conekta::" + Version));
+                _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", ApiKey + ":");
             }
-
-            Language = options.Value.Locale;
-
-            ApiKey = Convert.ToBase64String(Encoding.UTF8.GetBytes(options.Value.ApiKey));
         }
 
         public async Task<HttpResponseMessage> Delete(string path)
@@ -97,11 +104,6 @@ namespace ConektaNet.Services
                 RequestUri = new Uri(path),
                 Method = method
             };
-
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(VersionHeader));
-            request.Headers.AcceptLanguage.Add(new StringWithQualityHeaderValue(Language));
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Conekta/v1 DotNetBindings10/Conekta::" + Version));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", ApiKey + ":");
 
             if(method == HttpMethod.Post || method == HttpMethod.Put)
             {
